@@ -1,0 +1,181 @@
+Client:
+Sliding Window:
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<string.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<arpa/inet.h>
+
+int main()
+{
+    int port = 5500;
+    char * ip="127.0.0.1";
+    struct sockaddr_in client_addr;
+    int client_sock;
+    int bi;
+    char buffer[1024];
+    char data;
+    int state;
+    int ack;
+    int start=0;
+    int frameCount;
+    int windowsize=3;
+    socklen_t clientAddr_len;
+    client_sock = socket(AF_INET,SOCK_STREAM,0);
+    if(client_sock<0)
+    {
+        perror("Socket Error!");
+        exit(0);
+    }
+    printf("\n---> Server Socket Created Successfully!");
+    memset(&client_addr,'\0',sizeof(client_addr));
+    client_addr.sin_family=AF_INET;
+    client_addr.sin_port=port;
+    client_addr.sin_addr.s_addr=inet_addr(ip);
+    clientAddr_len=sizeof(client_addr);
+    bi = connect(client_sock,(struct sockaddr*)&client_addr,clientAddr_len);
+    if(bi<0)
+    {
+        perror("Connection Error!");
+    }
+    printf("\n---> You are connected to server ");
+    char Recvdata = ' ';
+    for(int i=0;i<windowsize;i++)
+    {
+        recv(client_sock,&Recvdata,sizeof(Recvdata),0);
+        printf("\n---> Data Received : %c",Recvdata);
+        start++;
+    }
+    ack = start;
+    send(client_sock,&ack,sizeof(ack),0);
+    while(1)
+    {
+        state = recv(client_sock,&Recvdata,sizeof(Recvdata),0);
+        if(state<0)
+        {
+            ack=start;
+            send(client_sock,&ack,sizeof(ack),0);
+        }
+        else if(Recvdata=='\0')
+        {
+            printf("\n---> Data Recived Successfully !");
+            break;
+        }
+        else
+        {
+        printf("\n---> Data Received : %c",Recvdata);
+        start++;
+        ack=start;
+        send(client_sock,&ack,sizeof(ack),0);
+        }
+    }
+
+    close(client_sock);
+    printf("\n--->Disconnected from Server!");
+
+
+    return 0;
+} 
+
+
+
+
+
+
+Server:
+Sliding Window:
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<string.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<arpa/inet.h>
+
+int main()
+{
+    int port = 5500;
+    char * ip="127.0.0.1";
+    struct sockaddr_in server_addr,client_addr;
+    int server_sock,client_sock;
+    int bi;
+    char buffer[1024];
+    int ack;
+    int frameCount;
+    char window[3];
+    int start=0;
+    int winsize = 3;
+
+    socklen_t serverAddr_len,clientAddr_len;
+    server_sock = socket(AF_INET,SOCK_STREAM,0);
+    if(server_sock<0)
+    {
+        perror("Socket Error!");
+        exit(0);
+    }
+    printf("\n---> Server Socket Created Successfully!");
+    memset(&server_addr,'\0',sizeof(server_addr));
+    server_addr.sin_family=AF_INET;
+    server_addr.sin_port=port;
+    server_addr.sin_addr.s_addr=inet_addr(ip);
+    serverAddr_len=sizeof(server_addr);
+    bi = bind(server_sock,(struct sockaddr*)&server_addr,serverAddr_len);
+    if(bi<0)
+    {
+        perror("Binding Error!");
+    }
+    printf("\n---> Socket Bind on port %d successfully",port);
+    printf("\n--->Listening.....");
+    listen(server_sock,5);
+
+    while(1)
+    {
+        clientAddr_len=sizeof(client_addr);
+        client_sock=accept(server_sock,(struct sockaddr*)&client_addr,&clientAddr_len);
+        if(client_sock<0)
+        {
+            perror("Client Socket Error!");
+        }
+        printf("\n---> Client Connected!");
+        printf("\n---> Data To Be Send => 1234512345");
+        const char *Data = "1234512345";
+        int datasize = 10;
+        start = 0;
+        strncpy(window,Data+start,winsize);
+        window[winsize]='\0';
+        printf("\n---> Window = %s",window);
+        for(int i=0;i<winsize;i++)
+        {
+            send(client_sock,&window[i],sizeof(window[i]),0);
+        }
+        while(start+winsize <= datasize)
+        {
+        recv(client_sock,&ack,sizeof(ack),0);
+        if(ack>(start+winsize-1))
+        {
+            start++;
+            strncpy(window,Data+start,winsize);
+            window[winsize]='\0';
+            printf("\n---> Window = %s",window);
+            send(client_sock,&window[winsize-1],sizeof(window[0]),0);
+        }
+        else
+        {
+            send(client_sock,&window[ack],sizeof(char),0);
+        }
+        }
+        send(client_sock,&window[winsize],sizeof(char),0);
+        printf("\n---> Transmission Successfull!");
+
+        close(client_sock);
+        printf("\n---> CLient Disconnected!");
+        
+    }
+
+
+}
